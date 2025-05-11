@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Budget Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        secondary: '#F2F2F7',
+                        accent: '#FF6B6B',
+                        success: '#4CAF50',
+                        warning: '#FFC107',
+                        info: '#2196F3',
+                        dark: '#181818',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            },
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .dark .chart-container canvas {
+            filter: invert(0.9) hue-rotate(180deg);
+        }
+        
+        /* Smooth transitions for dark mode */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        .dark ::-webkit-scrollbar-track {
+            background: #2d2d2d;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        .dark ::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+        
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+        
+        /* Animation for notifications */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .notification {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-dark text-gray-900 dark:text-gray-100 font-sans">
+    <div id="notification-container" class="fixed top-4 right-4 z-50 flex flex-col items-end space-y-2"></div>
+
+    <!-- Header -->
+    <header class="bg-white dark:bg-dark shadow-sm py-4 sticky top-0 z-10">
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-heart text-accent text-2xl"></i>
+                <h1 class="text-xl font-bold text-primary dark:text-white">Wedding Budget Planner</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <i class="fas fa-sun dark:hidden"></i>
+                    <i class="fas fa-moon hidden dark:block"></i>
+                </button>
+                <button id="export-btn" class="flex items-center space-x-2 bg-primary text-white px-3 py-1.5 rounded-md hover:bg-opacity-90 transition-all text-sm">
+                    <i class="fas fa-download"></i>
+                    <span class="hidden sm:inline">Export</span>
+                </button>
+                <button id="import-btn" class="flex items-center space-x-2 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-sm">
+                    <i class="fas fa-upload"></i>
+                    <span class="hidden sm:inline">Import</span>
+                </button>
+                <input type="file" id="import-file" class="hidden" accept=".json">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 pb-24">
+        <!-- Top Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Total Budget</p>
+                        <h2 class="text-2xl font-bold" id="total-budget-display">$25,000</h2>
+                    </div>
+                    <button id="edit-budget-btn" class="text-primary hover:text-primary-600">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400">Spent So Far</p>
+                <h2 class="text-2xl font-bold" id="spent-amount">$0</h2>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-2">
+                    <div id="spent-progress" class="bg-primary h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400">Remaining Budget</p>
+                <h2 class="text-2xl font-bold" id="remaining-amount">$25,000</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <span id="remaining-percentage">100%</span> of total budget
+                </p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+            <ul class="flex overflow-x-auto whitespace-nowrap">
+                <li>
+                    <button data-tab="dashboard" class="tab-btn active px-4 py-2 font-medium text-primary border-b-2 border-primary">
+                        <i class="fas fa-home mr-2"></i>Dashboard
+                    </button>
+                </li>
+                <li>
+                    <button data-tab="expenses" class="tab-btn px-4 py-2 font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+                        <i class="fas fa-receipt mr-2"></i>Expenses
+                    </button>
+                </li>
+                <li>
+                    <button data-tab="categories" class="tab-btn px-4 py-2 font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+                        <i class="fas fa-tags mr-2"></i>Categories
+                    </button>
+                </li>
+                <li>
+                    <button data-tab="vendors" class="tab-btn px-4 py-2 font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+                        <i class="fas fa-store mr-2"></i>Vendors
+                    </button>
+                </li>
+                <li>
+                    <button data-tab="reports" class="tab-btn px-4 py-2 font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+                        <i class="fas fa-chart-pie mr-2"></i>Reports
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Tab Content -->
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Budget Overview -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Budget Overview</h3>
+                    <div class="chart-container" style="position: relative; height:300px;">
+                        <canvas id="budget-overview-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Recent Expenses -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold">Recent Expenses</h3>
+                        <button id="add-expense-dashboard" class="text-sm bg-primary text-white px-3 py-1 rounded-md hover:bg-opacity-90">
+                            <i class="fas fa-plus mr-1"></i> Add
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-4 py-2">Category</th>
+                                    <th class="px-4 py-2">Description</th>
+                                    <th class="px-4 py-2">Amount</th>
+                                    <th class="px-4 py-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-expenses">
+                                <tr class="text-center text-gray-500 dark:text-gray-400">
+                                    <td colspan="4" class="py-4">No expenses added yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Upcoming Payments -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Upcoming Payments</h3>
+                    <div id="upcoming-payments" class="space-y-3">
+                        <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                            No upcoming payments
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Budget by Category -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Budget by Category</h3>
+                    <div id="category-list" class="space-y-3">
+                        <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                            No categories added yet
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expenses Tab -->
+        <div id="expenses" class="tab-content">
+            <div class="mb-6 flex justify-between items-center">
+                <h2 class="text-xl font-bold">Expense Tracking</h2>
+                <button id="add-expense-btn" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90">
+                    <i class="fas fa-plus mr-2"></i>Add Expense
+                </button>
+            </div>
+            
+            <!-- Filters -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                        <select id="filter-category" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                        <select id="filter-status" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                            <option value="">All Status</option>
+                            <option value="paid">Paid</option>
+                            <option value="partial">Partially Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor</label>
+                        <select id="filter-vendor" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                            <option value="">All Vendors</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sort By</label>
+                        <select id="sort-expenses" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                            <option value="date-desc">Date (Newest)</option>
+                            <option value="date-asc">Date (Oldest)</option>
+                            <option value="amount-desc">Amount (High to Low)</option>
+                            <option value="amount-asc">Amount (Low to High)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Expenses Table -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-4 py-3">Date</th>
+                                <th class="px-4 py-3">Category</th>
+                                <th class="px-4 py-3">Description</th>
+                                <th class="px-4 py-3">Vendor</th>
+                                <th class="px-4 py-3">Total</th>
+                                <th class="px-4 py-3">Paid</th>
+                                <th class="px-4 py-3">Status</th>
+                                <th class="px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenses-table-body">
+                            <tr class="text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="8" class="py-4">No expenses added yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Categories Tab -->
+        <div id="categories" class="tab-content">
+            <div class="mb-6 flex justify-between items-center">
+                <h2 class="text-xl font-bold">Budget Categories</h2>
+                <button id="add-category-btn" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90">
+                    <i class="fas fa-plus mr-2"></i>Add Category
+                </button>
+            </div>
+            
+            <!-- Categories Table -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-4 py-3">Category</th>
+                                <th class="px-4 py-3">Budget Allocation</th>
+                                <th class="px-4 py-3">Budget Amount</th>
+                                <th class="px-4 py-3">Spent</th>
+                                <th class="px-4 py-3">Remaining</th>
+                                <th class="px-4 py-3">Progress</th>
+                                <th class="px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categories-table-body">
+                            <tr class="text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="py-4">No categories added yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vendors Tab -->
+        <div id="vendors" class="tab-content">
+            <div class="mb-6 flex justify-between items-center">
+                <h2 class="text-xl font-bold">Vendor Management</h2>
+                <button id="add-vendor-btn" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90">
+                    <i class="fas fa-plus mr-2"></i>Add Vendor
+                </button>
+            </div>
+            
+            <!-- Vendors Grid -->
+            <div id="vendors-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="text-center text-gray-500 dark:text-gray-400 py-8 col-span-full">
+                    No vendors added yet
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div id="reports" class="tab-content">
+            <h2 class="text-xl font-bold mb-6">Budget Reports</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Category Distribution -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Category Distribution</h3>
+                    <div class="chart-container" style="position: relative; height:300px;">
+                        <canvas id="category-distribution-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Paid vs Unpaid -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Paid vs Unpaid</h3>
+                    <div class="chart-container" style="position: relative; height:300px;">
+                        <canvas id="paid-unpaid-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Monthly Spending -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Monthly Spending</h3>
+                    <div class="chart-container" style="position: relative; height:300px;">
+                        <canvas id="monthly-spending-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Budget Usage -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Budget Usage</h3>
+                    <div class="chart-container" style="position: relative; height:300px;">
+                        <canvas id="budget-usage-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-2 md:hidden z-20">
+        <div class="flex justify-around">
+            <button data-tab="dashboard" class="mobile-tab-btn flex flex-col items-center text-primary">
+                <i class="fas fa-home text-lg"></i>
+                <span class="text-xs mt-1">Dashboard</span>
+            </button>
+            <button data-tab="expenses" class="mobile-tab-btn flex flex-col items-center text-gray-500 dark:text-gray-400">
+                <i class="fas fa-receipt text-lg"></i>
+                <span class="text-xs mt-1">Expenses</span>
+            </button>
+            <button data-tab="categories" class="mobile-tab-btn flex flex-col items-center text-gray-500 dark:text-gray-400">
+                <i class="fas fa-tags text-lg"></i>
+                <span class="text-xs mt-1">Categories</span>
+            </button>
+            <button data-tab="vendors" class="mobile-tab-btn flex flex-col items-center text-gray-500 dark:text-gray-400">
+                <i class="fas fa-store text-lg"></i>
+                <span class="text-xs mt-1">Vendors</span>
+            </button>
+            <button data-tab="reports" class="mobile-tab-btn flex flex-col items-center text-gray-500 dark:text-gray-400">
+                <i class="fas fa-chart-pie text-lg"></i>
+                <span class="text-xs mt-1">Reports</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Modals -->
+    <!-- Budget Edit Modal -->
+    <div id="budget-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Edit Total Budget</h3>
+                    <button class="close-modal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <label for="total-budget" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Budget Amount</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">$</span>
+                        <input type="number" id="total-budget" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 py-2 text-base" placeholder="Enter amount" min="0" step="100">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button class="close-modal px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md">
+                        Cancel
+                    </button>
+                    <button id="save-budget-btn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expense Modal -->
+    <div id="expense-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="expense-modal-title" class="text-lg font-bold">Add Expense</h3>
+                    <button class="close-modal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form id="expense-form">
+                    <input type="hidden" id="expense-id">
+                    <div class="mb-4">
+                        <label for="expense-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                        <input type="date" id="expense-date" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="expense-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                        <select id="expense-category" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" required>
+                            <option value="">Select Category</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="expense-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                        <input type="text" id="expense-description" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" placeholder="What is this expense for?" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="expense-vendor" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor</label>
+                        <select id="expense-vendor" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                            <option value="">Select Vendor (Optional)</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="expense-amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Amount</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">$</span>
+                                <input type="number" id="expense-amount" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 py-2 text-base" placeholder="0.00" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="expense-paid" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount Paid</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">$</span>
+                                <input type="number" id="expense-paid" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 py-2 text-base" placeholder="0.00" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="expense-due-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Due Date</label>
+                        <input type="date" id="expense-due-date" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                    </div>
+                    <div class="mb-4">
+                        <label for="expense-notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                        <textarea id="expense-notes" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" rows="2" placeholder="Additional details about this expense"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" class="close-modal px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90">
+                            Save Expense
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Modal -->
+    <div id="category-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="category-modal-title" class="text-lg font-bold">Add Category</h3>
+                    <button class="close-modal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form id="category-form">
+                    <input type="hidden" id="category-id">
+                    <div class="mb-4">
+                        <label for="category-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category Name</label>
+                        <input type="text" id="category-name" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" placeholder="e.g. Venue, Catering, Photography" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="category-percentage" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget Percentage</label>
+                        <div class="flex items-center">
+                            <input type="range" id="category-percentage-range" min="0" max="100" step="1" value="10" class="w-full mr-4">
+                            <div class="relative w-20">
+                                <input type="number" id="category-percentage" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pr-6 py-2 text-base text-right" min="0" max="100" value="10" required>
+                                <span class="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-500 dark:text-gray-400">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="category-amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget Amount</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">$</span>
+                            <input type="number" id="category-amount" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 pl-8 py-2 text-base" min="0" step="0.01" readonly>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="category-color" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color</label>
+                        <input type="color" id="category-color" class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-1" value="#5D5CDE">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" class="close-modal px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90">
+                            Save Category
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Modal -->
+    <div id="vendor-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="vendor-modal-title" class="text-lg font-bold">Add Vendor</h3>
+                    <button class="close-modal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form id="vendor-form">
+                    <input type="hidden" id="vendor-id">
+                    <div class="mb-4">
+                        <label for="vendor-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Name</label>
+                        <input type="text" id="vendor-name" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" placeholder="Business name" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="vendor-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                        <select id="vendor-category" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base">
+                            <option value="">Select Category (Optional)</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="vendor-phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                        <input type="tel" id="vendor-phone" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" placeholder="(123) 456-7890">
+                    </div>
+                    <div class="mb-4">
+                        <label for="vendor-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                        <input type="email" id="vendor-email" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" placeholder="contact@vendor.com">
+                    </div>
+                    <div class="mb-4">
+                        <label for="vendor-website" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Website</label>
+                        <input type="url" id="vendor-website" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" placeholder="https://example.com">
+                    </div>
+                    <div class="mb-4">
+                        <label for="vendor-notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                        <textarea id="vendor-notes" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-base" rows="2" placeholder="Additional information about this vendor"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" class="close-modal px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90">
+                            Save Vendor
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Confirm Delete</h3>
+                    <button class="close-modal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <p id="delete-confirm-message" class="mb-6">Are you sure you want to delete this item? This action cannot be undone.</p>
+                <div class="flex justify-end space-x-3">
+                    <button class="close-modal px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md">
+                        Cancel
+                    </button>
+                    <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check for dark mode preference
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        // Listen for changes in dark mode preference
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            // Update charts when theme changes
+            updateCharts();
+        });
+
+        // Sample Data with typical US wedding categories
+        let budgetData = {
+            totalBudget: 25000,
+            expenses: [],
+            categories: [
+                { id: 1, name: "Venue & Rentals", percentage: 30, color: "#5D5CDE" },
+                { id: 2, name: "Catering & Bar", percentage: 20, color: "#38B2AC" },
+                { id: 3, name: "Photography & Video", percentage: 10, color: "#ED8936" },
+                { id: 4, name: "Attire & Beauty", percentage: 10, color: "#F56565" },
+                { id: 5, name: "Flowers & Decor", percentage: 8, color: "#9F7AEA" },
+                { id: 6, name: "Entertainment", percentage: 7, color: "#667EEA" },
+                { id: 7, name: "Stationery", percentage: 2, color: "#48BB78" },
+                { id: 8, name: "Transportation", percentage: 3, color: "#4299E1" },
+                { id: 9, name: "Cake & Desserts", percentage: 2, color: "#FC8181" },
+                { id: 10, name: "Gifts & Favors", percentage: 3, color: "#B794F4" },
+                { id: 11, name: "Miscellaneous", percentage: 5, color: "#A0AEC0" }
+            ],
+            vendors: []
+        };
+
+        // Define chart variables
+        let budgetOverviewChart, categoryDistributionChart, paidUnpaidChart, monthlySpendingChart, budgetUsageChart;
+
+        // Initialize app on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tabs
+            initTabs();
+            // Initialize theme toggle
+            initThemeToggle();
+            // Setup event listeners
+            setupEventListeners();
+            // Initialize UI
+            initializeUI();
+            // Generate charts
+            initializeCharts();
+            // Generate sample data
+            generateSampleData();
+        });
+
+        function initTabs() {
+            // Desktop tabs
+            document.querySelectorAll('.tab-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+            
+            // Mobile tabs
+            document.querySelectorAll('.mobile-tab-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+        }
+
+        function switchTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Update desktop tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                if (btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('active', 'text-primary', 'border-b-2', 'border-primary');
+                    btn.classList.remove('text-gray-500', 'dark:text-gray-400');
+                } else {
+                    btn.classList.remove('active', 'text-primary', 'border-b-2', 'border-primary');
+                    btn.classList.add('text-gray-500', 'dark:text-gray-400');
+                }
+            });
+            
+            // Update mobile tab buttons
+            document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+                if (btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('text-primary');
+                    btn.classList.remove('text-gray-500', 'dark:text-gray-400');
+                } else {
+                    btn.classList.remove('text-primary');
+                    btn.classList.add('text-gray-500', 'dark:text-gray-400');
+                }
+            });
+            
+            // Refresh charts if switching to reports tab
+            if (tabId === 'reports') {
+                updateCharts();
+            }
+        }
+
+        function initThemeToggle() {
+            document.getElementById('theme-toggle').addEventListener('click', function() {
+                document.documentElement.classList.toggle('dark');
+                // Update charts when theme changes
+                updateCharts();
+            });
+        }
+
+        function setupEventListeners() {
+            // Budget Modal
+            document.getElementById('edit-budget-btn').addEventListener('click', openBudgetModal);
+            document.getElementById('save-budget-btn').addEventListener('click', saveBudgetChanges);
+            
+            // Expense Modal
+            document.getElementById('add-expense-btn').addEventListener('click', () => openExpenseModal());
+            document.getElementById('add-expense-dashboard').addEventListener('click', () => openExpenseModal());
+            document.getElementById('expense-form').addEventListener('submit', saveExpense);
+            
+            // Category Modal
+            document.getElementById('add-category-btn').addEventListener('click', () => openCategoryModal());
+            document.getElementById('category-form').addEventListener('submit', saveCategory);
+            document.getElementById('category-percentage-range').addEventListener('input', updateCategoryAmountFromRange);
+            document.getElementById('category-percentage').addEventListener('input', updateCategoryAmountFromInput);
+            
+            // Vendor Modal
+            document.getElementById('add-vendor-btn').addEventListener('click', () => openVendorModal());
+            document.getElementById('vendor-form').addEventListener('submit', saveVendor);
+            
+            // Export & Import
+            document.getElementById('export-btn').addEventListener('click', exportData);
+            document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
+            document.getElementById('import-file').addEventListener('change', importData);
+            
+            // Filter & Sort
+            document.getElementById('filter-category').addEventListener('change', filterExpenses);
+            document.getElementById('filter-status').addEventListener('change', filterExpenses);
+            document.getElementById('filter-vendor').addEventListener('change', filterExpenses);
+            document.getElementById('sort-expenses').addEventListener('change', filterExpenses);
+            
+            // Close modals
+            document.querySelectorAll('.close-modal').forEach(element => {
+                element.addEventListener('click', closeModals);
+            });
+        }
+
+        function initializeUI() {
+            // Initialize budgeting overview
+            updateBudgetSummary();
+            
+            // Load categories to dropdowns
+            loadCategoryDropdowns();
+            
+            // Load vendor dropdowns
+            loadVendorDropdowns();
+            
+            // Update category listing
+            updateCategoryListing();
+            
+            // Update expense tables
+            updateExpenseTables();
+            
+            // Update vendor grid
+            updateVendorGrid();
+        }
+
+        function initializeCharts() {
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            const textColor = isDarkMode ? '#E5E7EB' : '#374151';
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+            
+            // Chart defaults
+            Chart.defaults.color = textColor;
+            Chart.defaults.borderColor = gridColor;
+            
+            // Budget Overview Chart
+            const budgetOverviewCtx = document.getElementById('budget-overview-chart').getContext('2d');
+            budgetOverviewChart = new Chart(budgetOverviewCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [],
+                        borderWidth: 1,
+                        borderColor: isDarkMode ? '#374151' : '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+            
+            // Category Distribution Chart
+            const categoryDistributionCtx = document.getElementById('category-distribution-chart').getContext('2d');
+            categoryDistributionChart = new Chart(categoryDistributionCtx, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [],
+                        borderWidth: 1,
+                        borderColor: isDarkMode ? '#374151' : '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Paid vs Unpaid Chart
+            const paidUnpaidCtx = document.getElementById('paid-unpaid-chart').getContext('2d');
+            paidUnpaidChart = new Chart(paidUnpaidCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Paid', 'Unpaid'],
+                    datasets: [{
+                        data: [0, 0],
+                        backgroundColor: ['#4CAF50', '#F56565'],
+                        borderWidth: 1,
+                        borderColor: isDarkMode ? '#374151' : '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+            
+            // Monthly Spending Chart
+            const monthlySpendingCtx = document.getElementById('monthly-spending-chart').getContext('2d');
+            monthlySpendingChart = new Chart(monthlySpendingCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Monthly Spending',
+                        data: [],
+                        backgroundColor: '#5D5CDE',
+                        borderColor: '#4C4BC9',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '$' + context.raw.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Budget Usage Chart
+            const budgetUsageCtx = document.getElementById('budget-usage-chart').getContext('2d');
+            budgetUsageChart = new Chart(budgetUsageCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Budget',
+                            data: [],
+                            backgroundColor: 'rgba(93, 92, 222, 0.2)',
+                            borderColor: 'rgba(93, 92, 222, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Actual',
+                            data: [],
+                            backgroundColor: 'rgba(93, 92, 222, 1)',
+                            borderColor: 'rgba(93, 92, 222, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: false,
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.raw.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Update charts with data
+            updateCharts();
+        }
+
+        function updateCharts() {
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            const textColor = isDarkMode ? '#E5E7EB' : '#374151';
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+            
+            // Update global chart defaults
+            Chart.defaults.color = textColor;
+            Chart.defaults.borderColor = gridColor;
+            
+            // Budget Overview Chart
+            updateBudgetOverviewChart();
+            
+            // Category Distribution Chart
+            updateCategoryDistributionChart();
+            
+            // Paid vs Unpaid Chart
+            updatePaidUnpaidChart();
+            
+            // Monthly Spending Chart
+            updateMonthlySpendingChart();
+            
+            // Budget Usage Chart
+            updateBudgetUsageChart();
+        }
+
+        function updateBudgetOverviewChart() {
+            // Get spent amount by category
+            const categories = budgetData.categories;
+            const expenses = budgetData.expenses;
+            const spentByCategory = {};
+            
+            categories.forEach(category => {
+                spentByCategory[category.id] = 0;
+            });
+            
+            expenses.forEach(expense => {
+                if (spentByCategory[expense.category] !== undefined) {
+                    spentByCategory[expense.category] += parseFloat(expense.amount);
+                }
+            });
+            
+            // Prepare data for chart
+            const labels = [];
+            const data = [];
+            const colors = [];
+            
+            categories.forEach(category => {
+                const spentAmount = spentByCategory[category.id];
+                if (spentAmount > 0) {
+                    labels.push(category.name);
+                    data.push(spentAmount);
+                    colors.push(category.color);
+                }
+            });
+            
+            // If no data, add placeholder
+            if (data.length === 0) {
+                labels.push('No Expenses');
+                data.push(100);
+                colors.push('#E5E7EB');
+            }
+            
+            // Update the chart
+            budgetOverviewChart.data.labels = labels;
+            budgetOverviewChart.data.datasets[0].data = data;
+            budgetOverviewChart.data.datasets[0].backgroundColor = colors;
+            budgetOverviewChart.update();
+        }
+
+        function updateCategoryDistributionChart() {
+            // Prepare data for chart
+            const labels = [];
+            const data = [];
+            const colors = [];
+            
+            budgetData.categories.forEach(category => {
+                labels.push(category.name);
+                data.push((category.percentage / 100) * budgetData.totalBudget);
+                colors.push(category.color);
+            });
+            
+            // If no data, add placeholder
+            if (data.length === 0) {
+                labels.push('No Categories');
+                data.push(100);
+                colors.push('#E5E7EB');
+            }
+            
+            // Update the chart
+            categoryDistributionChart.data.labels = labels;
+            categoryDistributionChart.data.datasets[0].data = data;
+            categoryDistributionChart.data.datasets[0].backgroundColor = colors;
+            categoryDistributionChart.update();
+        }
+
+        function updatePaidUnpaidChart() {
+            // Calculate paid and unpaid amounts
+            let totalPaid = 0;
+            let totalUnpaid = 0;
+            
+            budgetData.expenses.forEach(expense => {
+                const amount = parseFloat(expense.amount);
+                const paid = parseFloat(expense.paid);
+                totalPaid += paid;
+                totalUnpaid += (amount - paid);
+            });
+            
+            // Update chart data
+            paidUnpaidChart.data.datasets[0].data = [totalPaid, totalUnpaid];
+            
+            // If no data, add placeholder
+            if (totalPaid === 0 && totalUnpaid === 0) {
+                paidUnpaidChart.data.labels = ['No Expenses'];
+                paidUnpaidChart.data.datasets[0].data = [100];
+                paidUnpaidChart.data.datasets[0].backgroundColor = ['#E5E7EB'];
+            } else {
+                paidUnpaidChart.data.labels = ['Paid', 'Unpaid'];
+                paidUnpaidChart.data.datasets[0].backgroundColor = ['#4CAF50', '#F56565'];
+            }
+            
+            paidUnpaidChart.update();
+        }
+
+        function updateMonthlySpendingChart() {
+            // Group expenses by month
+            const monthlySpending = {};
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            budgetData.expenses.forEach(expense => {
+                if (expense.date) {
+                    const date = new Date(expense.date);
+                    const month = date.getMonth();
+                    const year = date.getFullYear();
+                    const key = `${year}-${month}`;
+                    const label = `${monthNames[month]} ${year}`;
+                    
+                    if (!monthlySpending[key]) {
+                        monthlySpending[key] = { label, amount: 0 };
+                    }
+                    
+                    monthlySpending[key].amount += parseFloat(expense.amount);
+                }
+            });
+            
+            // Convert to arrays for chart
+            const labels = [];
+            const data = [];
+            
+            // Sort by date
+            const sortedKeys = Object.keys(monthlySpending).sort();
+            
+            sortedKeys.forEach(key => {
+                labels.push(monthlySpending[key].label);
+                data.push(monthlySpending[key].amount);
+            });
+            
+            // If no data, add placeholder
+            if (data.length === 0) {
+                labels.push('No Data');
+                data.push(0);
+            }
+            
+            // Update chart
+            monthlySpendingChart.data.labels = labels;
+            monthlySpendingChart.data.datasets[0].data = data;
+            monthlySpendingChart.update();
+        }
+
+        function updateBudgetUsageChart() {
+            // Prepare data for comparing budget allocation vs actual spending
+            const labels = [];
+            const budgetAmounts = [];
+            const actualData = [];
+            
+            // Calculate spending by category
+            const spentByCategory = {};
+            
+            budgetData.expenses.forEach(expense => {
+                if (!spentByCategory[expense.category]) {
+                    spentByCategory[expense.category] = 0;
+                }
+                spentByCategory[expense.category] += parseFloat(expense.amount);
+            });
+            
+            // Add data for each category
+            budgetData.categories.forEach(category => {
+                labels.push(category.name);
+                const budgetAmount = (category.percentage / 100) * budgetData.totalBudget;
+                budgetAmounts.push(budgetAmount);
+                actualData.push(spentByCategory[category.id] || 0);
+            });
+            
+            // If no data, add placeholder
+            if (labels.length === 0) {
+                labels.push('No Categories');
+                budgetAmounts.push(0);
+                actualData.push(0);
+            }
+            
+            // Update chart
+            budgetUsageChart.data.labels = labels;
+            budgetUsageChart.data.datasets[0].data = budgetAmounts;
+            budgetUsageChart.data.datasets[1].data = actualData;
+            budgetUsageChart.update();
+        }
+
+        function updateBudgetSummary() {
+            // Format and display total budget
+            document.getElementById('total-budget-display').textContent = formatCurrency(budgetData.totalBudget);
+            
+            // Calculate amounts spent and remaining
+            let totalSpent = 0;
+            budgetData.expenses.forEach(expense => {
+                totalSpent += parseFloat(expense.amount);
+            });
+            
+            const remaining = budgetData.totalBudget - totalSpent;
+            const spentPercentage = (totalSpent / budgetData.totalBudget) * 100;
+            const remainingPercentage = 100 - spentPercentage;
+            
+            // Update spent amount
+            document.getElementById('spent-amount').textContent = formatCurrency(totalSpent);
+            document.getElementById('spent-progress').style.width = `${spentPercentage}%`;
+            
+            // Update remaining amount
+            document.getElementById('remaining-amount').textContent = formatCurrency(remaining);
+            document.getElementById('remaining-percentage').textContent = `${remainingPercentage.toFixed(1)}%`;
+            
+            // Change color based on budget status
+            if (remaining < 0) {
+                document.getElementById('remaining-amount').classList.add('text-red-600');
+            } else {
+                document.getElementById('remaining-amount').classList.remove('text-red-600');
+            }
+        }
+
+        function loadCategoryDropdowns() {
+            // Get all dropdowns that need categories
+            const categoryDropdowns = [
+                document.getElementById('expense-category'),
+                document.getElementById('filter-category'),
+                document.getElementById('vendor-category')
+            ];
+            
+            // Clear and populate each dropdown
+            categoryDropdowns.forEach(dropdown => {
+                if (!dropdown) return;
+                
+                // Keep the first option and remove the rest
+                while (dropdown.options.length > 1) {
+                    dropdown.remove(1);
+                }
+                
+                // Add categories
+                budgetData.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    dropdown.appendChild(option);
+                });
+            });
+        }
+
+        function loadVendorDropdowns() {
+            // Get all dropdowns that need vendors
+            const vendorDropdowns = [
+                document.getElementById('expense-vendor'),
+                document.getElementById('filter-vendor')
+            ];
+            
+            // Clear and populate each dropdown
+            vendorDropdowns.forEach(dropdown => {
+                if (!dropdown) return;
+                
+                // Keep the first option and remove the rest
+                while (dropdown.options.length > 1) {
+                    dropdown.remove(1);
+                }
+                
+                // Add vendors
+                budgetData.vendors.forEach(vendor => {
+                    const option = document.createElement('option');
+                    option.value = vendor.id;
+                    option.textContent = vendor.name;
+                    dropdown.appendChild(option);
+                });
+            });
+        }
+
+        function updateCategoryListing() {
+            const categoryList = document.getElementById('category-list');
+            const categoriesTableBody = document.getElementById('categories-table-body');
+            
+            // Clear current listings
+            categoryList.innerHTML = '';
+            categoriesTableBody.innerHTML = '';
+            
+            if (budgetData.categories.length === 0) {
+                categoryList.innerHTML = `
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                        No categories added yet
+                    </div>`;
+                
+                categoriesTableBody.innerHTML = `
+                    <tr class="text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="7" class="py-4">No categories added yet</td>
+                    </tr>`;
+                return;
+            }
+            
+            // Calculate spending by category
+            const spentByCategory = {};
+            budgetData.expenses.forEach(expense => {
+                if (!spentByCategory[expense.category]) {
+                    spentByCategory[expense.category] = 0;
+                }
+                spentByCategory[expense.category] += parseFloat(expense.amount);
+            });
+            
+            // Update category list on dashboard
+            budgetData.categories.forEach(category => {
+                const budgetAmount = (category.percentage / 100) * budgetData.totalBudget;
+                const spentAmount = spentByCategory[category.id] || 0;
+                const remainingAmount = budgetAmount - spentAmount;
+                const progress = (spentAmount / budgetAmount) * 100;
+                
+                const categoryItem = document.createElement('div');
+                categoryItem.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${category.color}"></div>
+                            <span class="font-medium">${category.name}</span>
+                        </div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            ${formatCurrency(spentAmount)} / ${formatCurrency(budgetAmount)}
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div class="h-2 rounded-full" style="width: ${Math.min(100, progress)}%; background-color: ${category.color}"></div>
+                    </div>`;
+                
+                categoryList.appendChild(categoryItem);
+            });
+            
+            // Update categories table
+            budgetData.categories.forEach(category => {
+                const budgetAmount = (category.percentage / 100) * budgetData.totalBudget;
+                const spentAmount = spentByCategory[category.id] || 0;
+                const remainingAmount = budgetAmount - spentAmount;
+                const progress = (spentAmount / budgetAmount) * 100;
+                
+                const row = document.createElement('tr');
+                row.className = 'border-b dark:border-gray-700';
+                row.innerHTML = `
+                    <td class="px-4 py-3">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${category.color}"></div>
+                            ${category.name}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">${category.percentage}%</td>
+                    <td class="px-4 py-3">${formatCurrency(budgetAmount)}</td>
+                    <td class="px-4 py-3">${formatCurrency(spentAmount)}</td>
+                    <td class="px-4 py-3 ${remainingAmount < 0 ? 'text-red-600' : ''}">${formatCurrency(remainingAmount)}</td>
+                    <td class="px-4 py-3">
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div class="h-2 rounded-full" style="width: ${Math.min(100, progress)}%; background-color: ${category.color}"></div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex space-x-2">
+                            <button class="text-primary hover:text-primary-600" onclick="openCategoryModal(${category.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="text-red-600 hover:text-red-700" onclick="openDeleteConfirmModal('category', ${category.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>`;
+                
+                categoriesTableBody.appendChild(row);
+            });
+        }
+
+        function updateExpenseTables() {
+            const recentExpenses = document.getElementById('recent-expenses');
+            const expensesTableBody = document.getElementById('expenses-table-body');
+            const upcomingPayments = document.getElementById('upcoming-payments');
+            
+            // Clear current listings
+            recentExpenses.innerHTML = '';
+            expensesTableBody.innerHTML = '';
+            upcomingPayments.innerHTML = '';
+            
+            if (budgetData.expenses.length === 0) {
+                recentExpenses.innerHTML = `
+                    <tr class="text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="4" class="py-4">No expenses added yet</td>
+                    </tr>`;
+                
+                expensesTableBody.innerHTML = `
+                    <tr class="text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="8" class="py-4">No expenses added yet</td>
+                    </tr>`;
+                
+                upcomingPayments.innerHTML = `
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                        No upcoming payments
+                    </div>`;
+                return;
+            }
+            
+            // Sort expenses by date (newest first) for recent expenses
+            const sortedExpenses = [...budgetData.expenses].sort((a, b) => {
+                return new Date(b.date || 0) - new Date(a.date || 0);
+            });
+            
+            // Get only the 5 most recent expenses
+            const recentExpensesList = sortedExpenses.slice(0, 5);
+            
+            // Update recent expenses
+            recentExpensesList.forEach(expense => {
+                const category = budgetData.categories.find(c => c.id === expense.category) || { name: 'Unknown', color: '#999' };
+                const isPaid = parseFloat(expense.paid) >= parseFloat(expense.amount);
+                const isPartial = parseFloat(expense.paid) > 0 && parseFloat(expense.paid) < parseFloat(expense.amount);
+                
+                const row = document.createElement('tr');
+                row.className = 'border-b dark:border-gray-700';
+                row.innerHTML = `
+                    <td class="px-4 py-3">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${category.color}"></div>
+                            ${category.name}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">${expense.description}</td>
+                    <td class="px-4 py-3">${formatCurrency(expense.amount)}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${
+                            isPaid ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
+                            isPartial ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 
+                            'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        }">
+                            ${isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
+                        </span>
+                    </td>`;
+                
+                recentExpenses.appendChild(row);
+            });
+            
+            // Apply filters for expenses table
+            filterExpenses();
+            
+            // Get upcoming payments (expenses with due dates in the future and not fully paid)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to beginning of day
+            
+            const upcomingPaymentsList = budgetData.expenses
+                .filter(expense => {
+                    const dueDate = expense.dueDate ? new Date(expense.dueDate) : null;
+                    return dueDate && dueDate >= today && parseFloat(expense.paid) < parseFloat(expense.amount);
+                })
+                .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            
+            if (upcomingPaymentsList.length === 0) {
+                upcomingPayments.innerHTML = `
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                        No upcoming payments
+                    </div>`;
+                return;
+            }
+            
+            // Show up to 5 upcoming payments
+            upcomingPaymentsList.slice(0, 5).forEach(expense => {
+                const amountDue = parseFloat(expense.amount) - parseFloat(expense.paid);
+                const dueDate = new Date(expense.dueDate);
+                const category = budgetData.categories.find(c => c.id === expense.category) || { name: 'Unknown' };
+                const vendor = expense.vendor ? budgetData.vendors.find(v => v.id === expense.vendor)?.name || '' : '';
+                
+                const paymentItem = document.createElement('div');
+                paymentItem.className = 'bg-gray-50 dark:bg-gray-700 rounded-lg p-3';
+                paymentItem.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-medium">${expense.description}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">${category.name}${vendor ? ` · ${vendor}` : ''}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-medium">${formatCurrency(amountDue)}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Due ${formatDate(dueDate)}</p>
+                        </div>
+                    </div>`;
+                
+                upcomingPayments.appendChild(paymentItem);
+            });
+        }
+
+        function filterExpenses() {
+            const categoryFilter = document.getElementById('filter-category').value;
+            const statusFilter = document.getElementById('filter-status').value;
+            const vendorFilter = document.getElementById('filter-vendor').value;
+            const sortOption = document.getElementById('sort-expenses').value;
+            
+            // Filter expenses
+            let filteredExpenses = budgetData.expenses.filter(expense => {
+                // Category filter
+                if (categoryFilter && expense.category != categoryFilter) {
+                    return false;
+                }
+                
+                // Status filter
+                if (statusFilter) {
+                    const isPaid = parseFloat(expense.paid) >= parseFloat(expense.amount);
+                    const isPartial = parseFloat(expense.paid) > 0 && parseFloat(expense.paid) < parseFloat(expense.amount);
+                    
+                    if (statusFilter === 'paid' && !isPaid) {
+                        return false;
+                    }
+                    
+                    if (statusFilter === 'partial' && !isPartial) {
+                        return false;
+                    }
+                    
+                    if (statusFilter === 'unpaid' && (isPaid || isPartial)) {
+                        return false;
+                    }
+                }
+                
+                // Vendor filter
+                if (vendorFilter && expense.vendor != vendorFilter) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // Sort expenses
+            filteredExpenses.sort((a, b) => {
+                switch (sortOption) {
+                    case 'date-desc':
+                        return new Date(b.date || 0) - new Date(a.date || 0);
+                    case 'date-asc':
+                        return new Date(a.date || 0) - new Date(b.date || 0);
+                    case 'amount-desc':
+                        return parseFloat(b.amount) - parseFloat(a.amount);
+                    case 'amount-asc':
+                        return parseFloat(a.amount) - parseFloat(b.amount);
+                    default:
+                        return new Date(b.date || 0) - new Date(a.date || 0);
+                }
+            });
+            
+            // Update expenses table
+            const expensesTableBody = document.getElementById('expenses-table-body');
+            expensesTableBody.innerHTML = '';
+            
+            if (filteredExpenses.length === 0) {
+                expensesTableBody.innerHTML = `
+                    <tr class="text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="8" class="py-4">No expenses match your filters</td>
+                    </tr>`;
+                return;
+            }
+            
+            filteredExpenses.forEach(expense => {
+                const category = budgetData.categories.find(c => c.id === expense.category) || { name: 'Unknown', color: '#999' };
+                const vendor = expense.vendor ? budgetData.vendors.find(v => v.id === expense.vendor)?.name || '' : '';
+                const isPaid = parseFloat(expense.paid) >= parseFloat(expense.amount);
+                const isPartial = parseFloat(expense.paid) > 0 && parseFloat(expense.paid) < parseFloat(expense.amount);
+                
+                const row = document.createElement('tr');
+                row.className = 'border-b dark:border-gray-700';
+                row.innerHTML = `
+                    <td class="px-4 py-3">${expense.date ? formatDate(new Date(expense.date)) : ''}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${category.color}"></div>
+                            ${category.name}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">${expense.description}</td>
+                    <td class="px-4 py-3">${vendor}</td>
+                    <td class="px-4 py-3">${formatCurrency(expense.amount)}</td>
+                    <td class="px-4 py-3">${formatCurrency(expense.paid)}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${
+                            isPaid ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
+                            isPartial ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 
+                            'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        }">
+                            ${isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex space-x-2">
+                            <button class="text-primary hover:text-primary-600" onclick="openExpenseModal(${expense.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="text-red-600 hover:text-red-700" onclick="openDeleteConfirmModal('expense', ${expense.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>`;
+                
+                expensesTableBody.appendChild(row);
+            });
+        }
+
+        function updateVendorGrid() {
+            const vendorsGrid = document.getElementById('vendors-grid');
+            vendorsGrid.innerHTML = '';
+            
+            if (budgetData.vendors.length === 0) {
+                vendorsGrid.innerHTML = `
+                    <div class="text-center text-gray-500 dark:text-gray-400 py-8 col-span-full">
+                        No vendors added yet
+                    </div>`;
+                return;
+            }
+            
+            // Sort vendors alphabetically
+            const sortedVendors = [...budgetData.vendors].sort((a, b) => {
+                return a.name.localeCompare(b.name);
+            });
+            
+            // Add vendor cards
+            sortedVendors.forEach(vendor => {
+                const category = vendor.category ? budgetData.categories.find(c => c.id === vendor.category)?.name || '' : '';
+                
+                const vendorCard = document.createElement('div');
+                vendorCard.className = 'bg-white dark:bg-gray-800 rounded-lg shadow p-4';
+                vendorCard.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <h3 class="text-lg font-medium">${vendor.name}</h3>
+                        <div class="flex space-x-2">
+                            <button class="text-primary hover:text-primary-600" onclick="openVendorModal(${vendor.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="text-red-600 hover:text-red-700" onclick="openDeleteConfirmModal('vendor', ${vendor.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${category ? `<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${category}</p>` : ''}
+                    <div class="mt-4 grid grid-cols-1 gap-2">
+                        ${vendor.phone ? `
+                            <div class="flex items-center text-sm">
+                                <i class="fas fa-phone text-gray-500 dark:text-gray-400 mr-2"></i>
+                                <a href="tel:${vendor.phone}" class="hover:text-primary">${vendor.phone}</a>
+                            </div>` : ''}
+                        ${vendor.email ? `
+                            <div class="flex items-center text-sm">
+                                <i class="fas fa-envelope text-gray-500 dark:text-gray-400 mr-2"></i>
+                                <a href="mailto:${vendor.email}" class="hover:text-primary">${vendor.email}</a>
+                            </div>` : ''}
+                        ${vendor.website ? `
+                            <div class="flex items-center text-sm">
+                                <i class="fas fa-globe text-gray-500 dark:text-gray-400 mr-2"></i>
+                                <a href="${vendor.website}" target="_blank" class="hover:text-primary">${formatWebsite(vendor.website)}</a>
+                            </div>` : ''}
+                    </div>
+                    ${vendor.notes ? `
+                        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                            <p class="text-sm text-gray-600 dark:text-gray-300">${vendor.notes}</p>
+                        </div>` : ''}`;
+                
+                vendorsGrid.appendChild(vendorCard);
+            });
+        }
+
+        function openBudgetModal() {
+            document.getElementById('total-budget').value = budgetData.totalBudget;
+            document.getElementById('budget-modal').classList.remove('hidden');
+        }
+
+        function saveBudgetChanges() {
+            const newBudget = parseFloat(document.getElementById('total-budget').value);
+            if (isNaN(newBudget) || newBudget < 0) {
+                showNotification('Please enter a valid budget amount', 'error');
+                return;
+            }
+            
+            // Update budget data
+            budgetData.totalBudget = newBudget;
+            
+            // Close modal
+            closeModals();
+            
+            // Update UI
+            updateBudgetSummary();
+            updateCategoryListing();
+            updateCharts();
+            
+            showNotification('Budget updated successfully');
+        }
+
+        function openExpenseModal(expenseId = null) {
+            document.getElementById('expense-modal-title').textContent = expenseId ? 'Edit Expense' : 'Add Expense';
+            
+            // Reset form
+            document.getElementById('expense-form').reset();
+            document.getElementById('expense-id').value = '';
+            
+            // Set today as the default date
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('expense-date').value = today;
+            
+            if (expenseId) {
+                // Find the expense
+                const expense = budgetData.expenses.find(e => e.id === expenseId);
+                if (expense) {
+                    document.getElementById('expense-id').value = expense.id;
+                    document.getElementById('expense-date').value = expense.date || today;
+                    document.getElementById('expense-category').value = expense.category || '';
+                    document.getElementById('expense-description').value = expense.description || '';
+                    document.getElementById('expense-vendor').value = expense.vendor || '';
+                    document.getElementById('expense-amount').value = expense.amount || 0;
+                    document.getElementById('expense-paid').value = expense.paid || 0;
+                    document.getElementById('expense-due-date').value = expense.dueDate || '';
+                    document.getElementById('expense-notes').value = expense.notes || '';
+                }
+            }
+            
+            document.getElementById('expense-modal').classList.remove('hidden');
+        }
+
+        function saveExpense(e) {
+            e.preventDefault();
+            
+            const expenseId = document.getElementById('expense-id').value;
+            const isEdit = expenseId !== '';
+            
+            // Get form values
+            const date = document.getElementById('expense-date').value;
+            const category = document.getElementById('expense-category').value;
+            const description = document.getElementById('expense-description').value;
+            const vendor = document.getElementById('expense-vendor').value;
+            const amount = parseFloat(document.getElementById('expense-amount').value);
+            const paid = parseFloat(document.getElementById('expense-paid').value);
+            const dueDate = document.getElementById('expense-due-date').value;
+            const notes = document.getElementById('expense-notes').value;
+            
+            // Validate
+            if (!date || !category || !description || isNaN(amount) || isNaN(paid) || amount < 0 || paid < 0) {
+                showNotification('Please fill in all required fields with valid values', 'error');
+                return;
+            }
+            
+            if (paid > amount) {
+                showNotification('Paid amount cannot exceed total amount', 'error');
+                return;
+            }
+            
+            // Create or update expense
+            if (isEdit) {
+                // Find and update existing expense
+                const expenseIndex = budgetData.expenses.findIndex(e => e.id === parseInt(expenseId));
+                if (expenseIndex !== -1) {
+                    budgetData.expenses[expenseIndex] = {
+                        id: parseInt(expenseId),
+                        date,
+                        category: parseInt(category),
+                        description,
+                        vendor: vendor ? parseInt(vendor) : null,
+                        amount,
+                        paid,
+                        dueDate,
+                        notes
+                    };
+                }
+            } else {
+                // Generate a new ID
+                const newId = budgetData.expenses.length > 0 ? Math.max(...budgetData.expenses.map(e => e.id)) + 1 : 1;
+                
+                // Add new expense
+                budgetData.expenses.push({
+                    id: newId,
+                    date,
+                    category: parseInt(category),
+                    description,
+                    vendor: vendor ? parseInt(vendor) : null,
+                    amount,
+                    paid,
+                    dueDate,
+                    notes
+                });
+            }
+            
+            // Close modal
+            closeModals();
+            
+            // Update UI
+            updateBudgetSummary();
+            updateExpenseTables();
+            updateCategoryListing();
+            updateCharts();
+            
+            showNotification(`Expense ${isEdit ? 'updated' : 'added'} successfully`);
+        }
+
+        function openCategoryModal(categoryId = null) {
+            document.getElementById('category-modal-title').textContent = categoryId ? 'Edit Category' : 'Add Category';
+            
+            // Reset form
+            document.getElementById('category-form').reset();
+            document.getElementById('category-id').value = '';
+            document.getElementById('category-color').value = '#5D5CDE';
+            
+            if (categoryId) {
+                // Find the category
+                const category = budgetData.categories.find(c => c.id === categoryId);
+                if (category) {
+                    document.getElementById('category-id').value = category.id;
+                    document.getElementById('category-name').value = category.name || '';
+                    document.getElementById('category-percentage').value = category.percentage || 0;
+                    document.getElementById('category-percentage-range').value = category.percentage || 0;
+                    document.getElementById('category-color').value = category.color || '#5D5CDE';
+                    
+                    // Update the amount
+                    updateCategoryAmount();
+                }
+            }
+            
+            document.getElementById('category-modal').classList.remove('hidden');
+        }
+
+        function updateCategoryAmountFromRange() {
+            const percentage = document.getElementById('category-percentage-range').value;
+            document.getElementById('category-percentage').value = percentage;
+            updateCategoryAmount();
+        }
+
+        function updateCategoryAmountFromInput() {
+            const percentage = document.getElementById('category-percentage').value;
+            document.getElementById('category-percentage-range').value = percentage;
+            updateCategoryAmount();
+        }
+
+        function updateCategoryAmount() {
+            const percentage = parseFloat(document.getElementById('category-percentage').value);
+            const amount = (percentage / 100) * budgetData.totalBudget;
+            document.getElementById('category-amount').value = amount.toFixed(2);
+        }
+
+        function saveCategory(e) {
+            e.preventDefault();
+            
+            const categoryId = document.getElementById('category-id').value;
+            const isEdit = categoryId !== '';
+            
+            // Get form values
+            const name = document.getElementById('category-name').value;
+            const percentage = parseFloat(document.getElementById('category-percentage').value);
+            const color = document.getElementById('category-color').value;
+            
+            // Validate
+            if (!name || isNaN(percentage) || percentage < 0 || percentage > 100) {
+                showNotification('Please fill in all required fields with valid values', 'error');
+                return;
+            }
+            
+            // Calculate total percentage excluding this category
+            let totalPercentage = 0;
+            budgetData.categories.forEach(category => {
+                if (isEdit && category.id === parseInt(categoryId)) {
+                    return; // Skip this category when calculating total
+                }
+                totalPercentage += category.percentage;
+            });
+            
+            // Check if adding this percentage exceeds 100%
+            if (totalPercentage + percentage > 100) {
+                showNotification(`Total budget allocation cannot exceed 100%. Available: ${(100 - totalPercentage).toFixed(1)}%`, 'error');
+                return;
+            }
+            
+            // Create or update category
+            if (isEdit) {
+                // Find and update existing category
+                const categoryIndex = budgetData.categories.findIndex(c => c.id === parseInt(categoryId));
+                if (categoryIndex !== -1) {
+                    budgetData.categories[categoryIndex] = {
+                        id: parseInt(categoryId),
+                        name,
+                        percentage,
+                        color
+                    };
+                }
+            } else {
+                // Generate a new ID
+                const newId = budgetData.categories.length > 0 ? Math.max(...budgetData.categories.map(c => c.id)) + 1 : 1;
+                
+                // Add new category
+                budgetData.categories.push({
+                    id: newId,
+                    name,
+                    percentage,
+                    color
+                });
+            }
+            
+            // Close modal
+            closeModals();
+            
+            // Update UI
+            loadCategoryDropdowns();
+            updateCategoryListing();
+            updateCharts();
+            
+            showNotification(`Category ${isEdit ? 'updated' : 'added'} successfully`);
+        }
+
+        function openVendorModal(vendorId = null) {
+            document.getElementById('vendor-modal-title').textContent = vendorId ? 'Edit Vendor' : 'Add Vendor';
+            
+            // Reset form
+            document.getElementById('vendor-form').reset();
+            document.getElementById('vendor-id').value = '';
+            
+            if (vendorId) {
+                // Find the vendor
+                const vendor = budgetData.vendors.find(v => v.id === vendorId);
+                if (vendor) {
+                    document.getElementById('vendor-id').value = vendor.id;
+                    document.getElementById('vendor-name').value = vendor.name || '';
+                    document.getElementById('vendor-category').value = vendor.category || '';
+                    document.getElementById('vendor-phone').value = vendor.phone || '';
+                    document.getElementById('vendor-email').value = vendor.email || '';
+                    document.getElementById('vendor-website').value = vendor.website || '';
+                    document.getElementById('vendor-notes').value = vendor.notes || '';
+                }
+            }
+            
+            document.getElementById('vendor-modal').classList.remove('hidden');
+        }
+
+        function saveVendor(e) {
+            e.preventDefault();
+            
+            const vendorId = document.getElementById('vendor-id').value;
+            const isEdit = vendorId !== '';
+            
+            // Get form values
+            const name = document.getElementById('vendor-name').value;
+            const category = document.getElementById('vendor-category').value;
+            const phone = document.getElementById('vendor-phone').value;
+            const email = document.getElementById('vendor-email').value;
+            const website = document.getElementById('vendor-website').value;
+            const notes = document.getElementById('vendor-notes').value;
+            
+            // Validate
+            if (!name) {
+                showNotification('Please enter a vendor name', 'error');
+                return;
+            }
+            
+            // Create or update vendor
+            if (isEdit) {
+                // Find and update existing vendor
+                const vendorIndex = budgetData.vendors.findIndex(v => v.id === parseInt(vendorId));
+                if (vendorIndex !== -1) {
+                    budgetData.vendors[vendorIndex] = {
+                        id: parseInt(vendorId),
+                        name,
+                        category: category ? parseInt(category) : null,
+                        phone,
+                        email,
+                        website,
+                        notes
+                    };
+                }
+            } else {
+                // Generate a new ID
+                const newId = budgetData.vendors.length > 0 ? Math.max(...budgetData.vendors.map(v => v.id)) + 1 : 1;
+                
+                // Add new vendor
+                budgetData.vendors.push({
+                    id: newId,
+                    name,
+                    category: category ? parseInt(category) : null,
+                    phone,
+                    email,
+                    website,
+                    notes
+                });
+            }
+            
+            // Close modal
+            closeModals();
+            
+            // Update UI
+            loadVendorDropdowns();
+            updateVendorGrid();
+            
+            showNotification(`Vendor ${isEdit ? 'updated' : 'added'} successfully`);
+        }
+
+        function openDeleteConfirmModal(type, id) {
+            let confirmMessage = 'Are you sure you want to delete this item? This action cannot be undone.';
+            
+            if (type === 'category') {
+                const category = budgetData.categories.find(c => c.id === id);
+                if (category) {
+                    // Check if category has expenses
+                    const hasExpenses = budgetData.expenses.some(e => e.category === id);
+                    
+                    if (hasExpenses) {
+                        confirmMessage = `The category "${category.name}" has expenses associated with it. Deleting it will also delete these expense records. Continue?`;
+                    } else {
+                        confirmMessage = `Are you sure you want to delete the category "${category.name}"?`;
+                    }
+                }
+            } else if (type === 'expense') {
+                const expense = budgetData.expenses.find(e => e.id === id);
+                if (expense) {
+                    confirmMessage = `Are you sure you want to delete the expense "${expense.description}"?`;
+                }
+            } else if (type === 'vendor') {
+                const vendor = budgetData.vendors.find(v => v.id === id);
+                if (vendor) {
+                    // Check if vendor has expenses
+                    const hasExpenses = budgetData.expenses.some(e => e.vendor === id);
+                    
+                    if (hasExpenses) {
+                        confirmMessage = `The vendor "${vendor.name}" has expenses associated with it. Deleting it will remove the vendor from these expense records but keep the expenses. Continue?`;
+                    } else {
+                        confirmMessage = `Are you sure you want to delete the vendor "${vendor.name}"?`;
+                    }
+                }
+            }
+            
+            document.getElementById('delete-confirm-message').textContent = confirmMessage;
+            
+            // Set up the delete button
+            const deleteButton = document.getElementById('confirm-delete-btn');
+            deleteButton.onclick = function() {
+                deleteItem(type, id);
+            };
+            
+            document.getElementById('delete-confirm-modal').classList.remove('hidden');
+        }
+
+        function deleteItem(type, id) {
+            if (type === 'category') {
+                // Delete related expenses
+                budgetData.expenses = budgetData.expenses.filter(e => e.category !== id);
+                
+                // Delete category
+                budgetData.categories = budgetData.categories.filter(c => c.id !== id);
+                
+                // Update UI
+                loadCategoryDropdowns();
+                updateCategoryListing();
+                updateExpenseTables();
+                updateCharts();
+            } else if (type === 'expense') {
+                // Delete expense
+                budgetData.expenses = budgetData.expenses.filter(e => e.id !== id);
+                
+                // Update UI
+                updateBudgetSummary();
+                updateExpenseTables();
+                updateCategoryListing();
+                updateCharts();
+            } else if (type === 'vendor') {
+                // Remove vendor from expenses
+                budgetData.expenses.forEach(expense => {
+                    if (expense.vendor === id) {
+                        expense.vendor = null;
+                    }
+                });
+                
+                // Delete vendor
+                budgetData.vendors = budgetData.vendors.filter(v => v.id !== id);
+                
+                // Update UI
+                loadVendorDropdowns();
+                updateVendorGrid();
+                updateExpenseTables();
+            }
+            
+            // Close modal
+            closeModals();
+            
+            showNotification('Item deleted successfully');
+        }
+
+        function closeModals() {
+            document.querySelectorAll('#budget-modal, #expense-modal, #category-modal, #vendor-modal, #delete-confirm-modal').forEach(modal => {
+                modal.classList.add('hidden');
+            });
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(budgetData);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+            
+            const exportFileName = 'wedding_budget_' + new Date().toISOString().split('T')[0] + '.json';
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileName);
+            linkElement.style.display = 'none';
+            
+            document.body.appendChild(linkElement);
+            linkElement.click();
+            document.body.removeChild(linkElement);
+            
+            showNotification('Data exported successfully');
+        }
+
+        function importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Validate imported data
+                    if (!importedData.totalBudget || !Array.isArray(importedData.expenses) || !Array.isArray(importedData.categories) || !Array.isArray(importedData.vendors)) {
+                        throw new Error('Invalid data format');
+                    }
+                    
+                    // Update data
+                    budgetData = importedData;
+                    
+                    // Reset file input
+                    document.getElementById('import-file').value = '';
+                    
+                    // Update UI
+                    updateBudgetSummary();
+                    loadCategoryDropdowns();
+                    loadVendorDropdowns();
+                    updateCategoryListing();
+                    updateExpenseTables();
+                    updateVendorGrid();
+                    updateCharts();
+                    
+                    showNotification('Data imported successfully');
+                } catch (error) {
+                    console.error('Import error:', error);
+                    showNotification('Failed to import data. Please check the file format.', 'error');
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+
+        function showNotification(message, type = 'success') {
+            const container = document.getElementById('notification-container');
+            
+            const notification = document.createElement('div');
+            notification.className = `notification p-4 rounded-lg shadow-lg flex items-center space-x-3 ${
+                type === 'success' ? 'bg-green-100 border-l-4 border-green-500 text-green-700 dark:bg-green-900 dark:text-green-200' :
+                type === 'error' ? 'bg-red-100 border-l-4 border-red-500 text-red-700 dark:bg-red-900 dark:text-red-200' :
+                'bg-blue-100 border-l-4 border-blue-500 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+            }`;
+            
+            notification.innerHTML = `
+                <div class="flex-shrink-0">
+                    <i class="fas ${
+                        type === 'success' ? 'fa-check-circle' :
+                        type === 'error' ? 'fa-exclamation-circle' :
+                        'fa-info-circle'
+                    }"></i>
+                </div>
+                <div>${message}</div>
+                <button class="ml-auto text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                    <i class="fas fa-times"></i>
+                </button>`;
+            
+            // Add close button functionality
+            notification.querySelector('button').addEventListener('click', () => {
+                container.removeChild(notification);
+            });
+            
+            container.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (container.contains(notification)) {
+                    container.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        function formatCurrency(amount) {
+            return '$' + parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatDate(date) {
+            return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function formatWebsite(url) {
+            // Remove http/https and trailing slashes for display
+            return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+
+        function generateSampleData() {
+            // Add sample expenses only if there are none
+            if (budgetData.expenses.length === 0) {
+                const today = new Date();
+                const oneMonthAgo = new Date();
+                oneMonthAgo.setMonth(today.getMonth() - 1);
+                const twoMonthsAgo = new Date();
+                twoMonthsAgo.setMonth(today.getMonth() - 2);
+                
+                // Add sample vendors if there are none
+                if (budgetData.vendors.length === 0) {
+                    budgetData.vendors = [
+                        { id: 1, name: "Sunset Gardens", category: 1, phone: "(555) 123-4567", email: "events@sunsetgardens.com", website: "https://sunsetgardens.com", notes: "Venue coordinator: Jennifer Smith" },
+                        { id: 2, name: "Gourmet Delights Catering", category: 2, phone: "(555) 234-5678", email: "info@gourmetdelights.com", website: "https://gourmetdelights.com", notes: "Offers special dietary accommodations" },
+                        { id: 3, name: "Captured Moments Photography", category: 3, phone: "(555) 345-6789", email: "book@capturedmoments.com", website: "https://capturedmoments.com", notes: "Second shooter included in package" }
+                    ];
+                }
+                
+                // Add sample expenses
+                budgetData.expenses = [
+                    { id: 1, date: twoMonthsAgo.toISOString().split('T')[0], category: 1, description: "Venue Deposit", vendor: 1, amount: 5000, paid: 5000, dueDate: twoMonthsAgo.toISOString().split('T')[0], notes: "50% deposit to secure date" },
+                    { id: 2, date: oneMonthAgo.toISOString().split('T')[0], category: 2, description: "Catering Deposit", vendor: 2, amount: 2500, paid: 2500, dueDate: oneMonthAgo.toISOString().split('T')[0], notes: "For 100 guests, includes appetizers" },
+                    { id: 3, date: today.toISOString().split('T')[0], category: 3, description: "Photography Deposit", vendor: 3, amount: 1500, paid: 750, dueDate: today.toISOString().split('T')[0], notes: "Includes engagement session" },
+                    { id: 4, date: oneMonthAgo.toISOString().split('T')[0], category: 5, description: "Floral Deposit", amount: 1000, paid: 500, dueDate: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], notes: "Centerpieces and bouquets" }
+                ];
+                
+                // Update UI
+                updateBudgetSummary();
+                loadVendorDropdowns();
+                updateCategoryListing();
+                updateExpenseTables();
+                updateVendorGrid();
+                updateCharts();
+            }
+        }
+
+        // Expose functions for event handlers
+        window.openExpenseModal = openExpenseModal;
+        window.openCategoryModal = openCategoryModal;
+        window.openVendorModal = openVendorModal;
+        window.openDeleteConfirmModal = openDeleteConfirmModal;
+    </script>
+</body>
+</html>
